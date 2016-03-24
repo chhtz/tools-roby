@@ -1350,7 +1350,7 @@ module Roby
 
             if initfile = find_file('config', 'init.rb', order: :specific_first)
                 Application.info "loading init file #{initfile}"
-                require initfile
+                Kernel.require initfile
             end
 
             search_path.reverse.each do |app_dir|
