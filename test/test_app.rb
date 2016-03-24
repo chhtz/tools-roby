@@ -6,7 +6,6 @@ describe Roby::Application do
     before do
         @app = Roby::Application.new
         app.public_logs = false
-        app.plugins_enabled = false
         app.base_setup
         register_plan(@app.plan)
         @app_dir = "/test/roby_app"
@@ -245,6 +244,95 @@ describe Roby::Application do
             actions.should_receive(:find_all_actions_by_type).once.
                 with(task_m).and_return([flexmock(name: 'A'), flexmock(name: 'B')])
             assert_raises(ArgumentError) { app.action_from_model(task_m) }
+        end
+    end
+
+    describe "plugin support" do
+        describe "an existing plugin" do
+            def mktmpdir
+                dir = Pathname.new(Dir.mktmpdir)
+                @temp_dirs << dir
+                dir
+            end
+
+            attr_reader :plugin_path, :extra_plugin_path
+
+            before do
+                @temp_dirs = Array.new
+                @plugin_path = (mktmpdir + "roby-test.rb")
+                plugin_path.open 'w' do |io|
+                    io.puts "$TEST_PLUGIN_LOADED = true"
+                end
+                @extra_plugin_path = mktmpdir + "roby-test.rb"
+                extra_plugin_path.open('w').close
+
+                @load_path = $LOAD_PATH.dup
+                $LOAD_PATH.clear
+                $LOAD_PATH << plugin_path.dirname.to_s << extra_plugin_path.dirname.to_s
+            end
+            after do
+                $LOAD_PATH.clear
+                $LOAD_PATH.concat(@load_path)
+                @temp_dirs.each { |dir| dir.rmtree }
+                $TEST_PLUGIN_LOADED = false
+            end
+
+            it "returns the full path to all the matching plugins, ordered by LOAD_PATH, in #find_all_plugins_path" do
+                paths = app.find_all_plugins_path("test")
+                assert_equal [plugin_path.to_s, extra_plugin_path.to_s], paths
+            end
+
+            it "returns the full path to the first matching plugin file in #find_plugin_path" do
+                assert_equal plugin_path.to_s, app.find_plugin_path('test')
+            end
+
+            it "yields all plugins in #each_available_plugin" do
+                assert_equal [plugin_path.to_s, extra_plugin_path.to_s],
+                    app.each_available_plugin.to_a
+            end
+
+            it "returns true in #has_plugin?" do
+                assert app.has_plugin?('test')
+            end
+
+            it "loads the plugin in #using" do
+                app.using 'test'
+                assert $TEST_PLUGIN_LOADED
+            end
+
+            it "returns true in #has_loaded_plugin? once the plugin is loaded" do
+                refute app.has_loaded_plugin?('test')
+                app.using 'test'
+                assert app.has_loaded_plugin?('test')
+            end
+        end
+        describe "non-existent plugins" do
+            before do
+                @load_path = $LOAD_PATH.dup
+                $LOAD_PATH.clear
+            end
+            after do
+                $LOAD_PATH.clear
+                $LOAD_PATH.concat(@load_path)
+            end
+
+            it "returns an empty array in #find_all_plugins_path" do
+                assert_equal [], app.find_all_plugins_path('does_not_exist')
+            end
+            it "returns nil in #find_plugin_path" do
+                assert_nil app.find_plugin_path('does_not_exist')
+            end
+            it "does not yield in #each_available_plugin" do
+                assert_equal [], app.each_available_plugin.to_a
+            end
+            it "returns falsy in #has_plugin?" do
+                refute app.has_plugin?('does_not_exist')
+            end
+            it "raises ArgumentError in #using" do
+                assert_raises(ArgumentError) do
+                    app.using('does_not_exist')
+                end
+            end
         end
     end
 end

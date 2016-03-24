@@ -373,14 +373,15 @@ module Roby
         # ExecutionEngine setup
         attr_config :engine
 	
-	# A [name, dir, file, module] array of available plugins, where 'name'
-	# is the plugin name, 'dir' the directory in which it is installed,
-	# 'file' the file which should be required to load the plugin and
-	# 'module' the Application-compatible module for configuration of the
-	# plug-in
-	attr_reader :available_plugins
-	# An [name, module] array of the loaded plugins
-	attr_reader :plugins
+	# The plugins that have been loaded with {#using}
+        #
+        # @return [Set<String>]
+	attr_reader :loaded_plugins
+
+        # The app extensions that have been registered so far
+        #
+        # @return [Hash<String,Object>]
+        attr_reader :app_extensions
 
 	# The discovery options in multi-robot mode
 	attr_config :discovery
@@ -414,13 +415,6 @@ module Roby
         #
 	# True if user interaction is disabled during tests
 	attr_predicate :automatic_testing?, true
-
-        # @!method plugins_enabled?
-        # @!method plugins_enabled=(flag)
-        #
-        # True if plugins should be discovered, registered and loaded (true by
-        # default)
-        attr_predicate :plugins_enabled?, true
 
         # @return [Array<String>] list of paths to files not in models/ that
         #   contain some models. This is mainly used by the command-line tools
@@ -584,9 +578,8 @@ module Roby
             @backward_compatible_naming = true
             @development_mode = true
             @search_path = nil
-	    @plugins = Array.new
-            @plugins_enabled = true
-	    @available_plugins = Array.new
+	    @loaded_plugins = Set.new
+            @app_extensions = Hash.new
             @options = DEFAULT_OPTIONS.dup
             @created_log_dirs = []
             @created_log_base_dirs = []
@@ -668,69 +661,69 @@ module Roby
             add_lifecyle_hook(clear_models_handlers, block, user: user)
         end
 
-        # Looks into subdirectories of +dir+ for files called app.rb and
-        # registers them as Roby plugins
-        def load_plugins_from_prefix(dir)
-            dir = File.expand_path(dir)
-	    $LOAD_PATH.unshift dir
-
-	    Dir.new(dir).each do |subdir|
-		subdir = File.join(dir, subdir)
-		next unless File.directory?(subdir)
-		appfile = File.join(subdir, "app.rb")
-		next unless File.file?(appfile)
-                load_plugin_file(appfile)
-	    end
-        ensure
-            $LOAD_PATH.shift
+        # Find all files matching the Roby plugin pattern roby-$NAME with the given name
+        def find_all_plugins_path(name)
+            finder_name =
+                if Gem.respond_to?(:find_latest_files) 
+                    :find_latest_files
+                else :find_files
+                end
+            Gem.send(finder_name, "roby-#{name}", true)
         end
 
-        # Load the given Roby plugin file. It is usually called app.rb, and
-        # should call register_plugin with the relevant information
+        # Finds the file that should be loaded to enable the given plugin
         #
-        # Note that the file should not do anything yet. The actions required to
-        # have a functional plugin should be taken only in the block given to
-        # register_plugin or in the relevant plugin methods.
-        def load_plugin_file(appfile)
-            begin
-                require appfile
-            rescue
-                Roby.warn "cannot load plugin #{appfile}: #{$!.full_message}\n"
-            end
-            Roby.info "loaded plugin #{appfile}"
+        # @return [nil,String]
+        def find_plugin_path(name)
+            find_all_plugins_path(name).first
         end
 
-	# Returns true if +name+ is a loaded plugin
-	def loaded_plugin?(name)
-	    plugins.any? { |plugname, _| plugname == name }
-	end
+        # Enumerate the name of the plugins that are available on this install
+        def each_available_plugin(&block)
+            find_all_plugins_path('*').each(&block)
+        end
 
-	# Returns the [name, dir, file, module] array definition of the plugin
-	# +name+, or nil if +name+ is not a known plugin
-	def plugin_definition(name)
-	    available_plugins.find { |plugname, *_| plugname == name }
-	end
+        # Tests whether a plugin is present
+        def has_plugin?(name)
+            !!find_plugin_path(name)
+        end
 
-	# True if +name+ is a plugin known to us
-	def defined_plugin?(name)
-	    available_plugins.any? { |plugname, *_| plugname == name }
-	end
+        # Checks if a given plugin has been loaded with {#using}
+        def has_loaded_plugin?(name)
+            loaded_plugins.include?(name)
+        end
 
-        # Enumerates all available plugins, yielding only the plugin module
-        # (i.e. the plugin object itself)
-	def each_plugin(on_available = false)
-	    plugins = self.plugins
-	    if on_available
-		plugins = available_plugins.map { |name, _, mod, _| [name, mod] }
-	    end
-	    plugins.each do |_, mod|
-		yield(mod)
-	    end
+        # Load a plugin
+        def using(name)
+            if path = find_plugin_path(name)
+                require path
+                loaded_plugins << name
+            else
+                raise ArgumentError, "#{name} is not an available plugin"
+            end
+        end
+
+        # Register a path to be considered as part of the framework
+        #
+        # Mostly used in backtrace filtering
+        def add_dir_to_framework_paths(dir)
+            filter_out_patterns.push(/#{Regexp.quote(dir)}/)
+        end
+
+	# Loads the plugins whose name are listed in +names+
+	def register_app_extension(name, mod)
+            app_extensions[name] = mod
+            mod.reset(self) if mod.respond_to?(:reset)
+            extend mod
+            if mod.respond_to?(:load) && options
+                mod.load(self, options)
+            end
+            plan.refresh_relations
 	end
 
 	# Yields each plugin object that respond to +method+
 	def each_responding_plugin(method, on_available = false)
-	    each_plugin do |mod|
+            app_extensions.each_value do |mod|
 		yield(mod) if mod.respond_to?(method)
 	    end
 	end
@@ -738,8 +731,8 @@ module Roby
 	# Call +method+ on each loaded extension module which define it, with
 	# arguments +args+
 	def call_plugins(method, *args)
-	    each_responding_plugin(method) do |config_extension|
-		config_extension.send(method, *args)
+	    each_responding_plugin(method) do |app_extensions|
+		app_extensions.send(method, *args)
 	    end
 	end
 
@@ -761,76 +754,6 @@ module Roby
             end
             @options = @options.recursive_merge(options)
 	end
-
-        def register_plugins(force: false)
-            if !plugins_enabled? && !force
-                raise PluginsDisabled, "cannot call #register_plugins while the plugins are disabled"
-            end
-
-            # Load the plugins 'main' files
-            if plugin_path = ENV['ROBY_PLUGIN_PATH']
-                plugin_path.split(':').each do |plugin|
-                    if File.directory?(plugin)
-                        load_plugins_from_prefix plugin
-                    elsif File.file?(plugin)
-                        load_plugin_file plugin
-                    end
-                end
-            end
-        end
-
-	# Loads the plugins whose name are listed in +names+
-	def using(*names, force: false)
-            if !plugins_enabled? && !force
-                raise PluginsDisabled, "plugins are disabled, cannot load #{names.join(", ")}"
-            end
-
-            register_plugins(force: true)
-	    names.map do |name|
-		name = name.to_s
-		unless plugin = plugin_definition(name)
-		    raise ArgumentError, "#{name} is not a known plugin (available plugins: #{available_plugins.map { |n, *_| n }.join(", ")})"
-		end
-		name, dir, mod, init = *plugin
-		if already_loaded = plugins.find { |n, m| n == name && m == mod }
-		    next(already_loaded[1])
-		end
-
-                if dir
-                    filter_out_patterns.push(/#{Regexp.quote(dir)}/)
-                end
-
-		if init
-		    begin
-			$LOAD_PATH.unshift dir
-			init.call
-			mod.reset(self) if mod.respond_to?(:reset)
-		    rescue Exception => e
-			Roby.fatal "cannot load plugin #{name}: #{e.full_message}"
-			exit(1)
-		    ensure
-			$LOAD_PATH.shift
-		    end
-		end
-
-                add_plugin(name, mod)
-	    end
-	end
-
-        def add_plugin(name, mod)
-            plugins << [name, mod]
-            extend mod
-            # If +load+ has already been called, call it on the module
-            if mod.respond_to?(:load) && options
-                mod.load(self, options)
-            end
-
-            # Refresh the relation sets in #plan to include relations
-            # possibly added by the plugin
-            plan.refresh_relations
-
-            mod
-        end
 
         # The robot name
         #
@@ -1343,11 +1266,6 @@ module Roby
         def load_base_config
             load_config_yaml
 
-	    # Get the application-wide configuration
-            if plugins_enabled?
-                register_plugins
-            end
-
             if initfile = find_file('config', 'init.rb', order: :specific_first)
                 Application.info "loading init file #{initfile}"
                 Kernel.require initfile
@@ -1536,7 +1454,7 @@ module Roby
 
                 logfile_path = File.join(log_dir, "#{robot_name}-events.log")
                 event_io = File.open(logfile_path, 'w')
-                logfile = DRoby::Logfile::Writer.new(event_io, plugins: plugins.map { |n, _| n })
+                logfile = DRoby::Logfile::Writer.new(event_io, plugins: loaded_plugins.to_a)
                 plan.event_logger = DRoby::EventLogger.new(logfile)
                 plan.execution_engine.event_logger = plan.event_logger
 
@@ -1563,7 +1481,7 @@ module Roby
 
 	    engine_config = self.engine
 	    engine = self.plan.execution_engine
-            plugins = self.plugins.map { |_, mod| mod if (mod.respond_to?(:start) || mod.respond_to?(:run)) }.compact
+            plugins = self.app_extensions.each_value.find_all { |mod| mod.respond_to?(:start) || mod.respond_to?(:run) }
             engine.once do
                 run_plugins(plugins, &block)
             end
@@ -2066,10 +1984,6 @@ module Roby
 	    end
 	    raise Errno::ENOENT, "no file #{name} found in #{Roby::Conf.datadirs.join(":")}"
 	end
-
-        def register_app_extension(name, mod)
-            app_extensions[name] = mod
-        end
 
         # Returns the path in search_path that contains the given file or path
         #
