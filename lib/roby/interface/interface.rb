@@ -137,8 +137,8 @@ module Roby
             # @return [Array<Roby::Actions::Models::Action>]
             def actions
                 result = []
-                app.planners.each do |planner_model|
-                    planner_model.each_registered_action do |_, act|
+                app.main_action_interfaces.each do |action_interface|
+                    action_interface.each_registered_action do |_, act|
                         result << act
                     end
                 end

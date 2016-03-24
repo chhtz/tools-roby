@@ -222,27 +222,27 @@ describe Roby::Application do
     end
 
     describe "#action_from_model" do
-        attr_reader :planner
+        attr_reader :actions
         attr_reader :task_m
 
         before do
-            @planner = flexmock
+            @actions = flexmock
             @task_m = Roby::Task.new_submodel
-            app.planners << planner
+            app.main_action_interfaces << actions
         end
 
         it "raises ArgumentError if there are no matches" do
-            planner.should_receive(:find_all_actions_by_type).once.
+            actions.should_receive(:find_all_actions_by_type).once.
                 with(task_m).and_return([])
             assert_raises(ArgumentError) { app.action_from_model(task_m) }
         end
         it "returns the action if there is a single match" do
-            planner.should_receive(:find_all_actions_by_type).once.
+            actions.should_receive(:find_all_actions_by_type).once.
                 with(task_m).and_return([action = flexmock(name: 'A')])
-            assert_equal [planner, action], app.action_from_model(task_m)
+            assert_equal [actions, action], app.action_from_model(task_m)
         end
         it "raises if there are more than one match" do
-            planner.should_receive(:find_all_actions_by_type).once.
+            actions.should_receive(:find_all_actions_by_type).once.
                 with(task_m).and_return([flexmock(name: 'A'), flexmock(name: 'B')])
             assert_raises(ArgumentError) { app.action_from_model(task_m) }
         end

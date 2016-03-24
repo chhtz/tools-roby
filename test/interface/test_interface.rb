@@ -24,7 +24,7 @@ describe Roby::Interface::Interface do
                 def an_action
                 end
             end
-            app.planners << actions
+            app.main_action_interfaces << actions
             assert_equal [actions.an_action.model], interface.actions
         end
     end

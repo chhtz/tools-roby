@@ -76,13 +76,13 @@ module Roby
     #   #setup is called. base_setup is always called.
     # - load models in models/tasks
     # - require_models hook
-    # - load models in models/planners and models/actions
-    # - require_planners hook
+    # - load action interfaces in models/actions
+    # - require_actions hook
     # - load additional model files
     # - finalize_model_loading hook
     # - load config file config/ROBOT.rb
     # - require_config hook
-    # - setup main planner
+    # - setup main action interface
     # - setup testing if in testing mode
     # - setup shell interface
     class Application
@@ -104,10 +104,10 @@ module Roby
         # @return [ExecutionEngine,nil]
         def execution_engine; plan.execution_engine if plan end
         
-	# A set of planners declared in this application
+        # The toplevel action interfaces that can be accessed in e.g. the shell
         # 
         # @return [Array]
-	attr_reader :planners
+	attr_reader :main_action_interfaces
 
 	# Applicatio configuration information is stored in a YAML file
         # config/app.yml. The options are saved in a hash.
@@ -603,7 +603,7 @@ module Roby
                                     Roby::RX_REQUIRE]
             self.abort_on_application_exception = true
 
-            @planners    = []
+            @main_action_interfaces    = []
             @notification_listeners = Array.new
 
             @init_handlers         = Array.new
@@ -1151,16 +1151,15 @@ module Roby
 
             define_actions_module
             if auto_load_models?
-                auto_require_planners
+                auto_require_actions
             end
-            define_main_planner_if_needed
+            define_main_action_interface_if_needed
 
             action_handlers.each do |act|
                 isolate_load_errors("error in #{act}") do
                     app_module::Actions::Main.class_eval(&act)
                 end
             end
-
 
             additional_model_files.each do |path|
                 require path
@@ -1283,7 +1282,7 @@ module Roby
             end
         end
 
-        def define_main_planner_if_needed
+        def define_main_action_interface_if_needed
             if !app_module::Actions.const_defined_here?(:Main)
                 app_module::Actions.const_set(:Main, Class.new(Roby::Actions::Interface))
             end
@@ -1294,16 +1293,13 @@ module Roby
             end
         end
 
-        # Loads the planner models
-        #
-        # This method is called at the end of {#require_models}, before the
-        # plugins' require_models hook is called
+        # @deprecated use {#auto_require_actions} instead
         def require_planners
-            Roby.warn_deprecated "Application#require_planners is deprecated and has been renamed into #auto_require_planners"
-            auto_require_planners
+            Roby.warn_deprecated "Application#require_planners is deprecated and has been renamed into #auto_require_actions"
+            auto_require_actions
         end
 
-        def auto_require_planners
+        def auto_require_actions
             search_path = self.auto_load_search_path
 
             prefixes = ['actions']
@@ -1324,7 +1320,8 @@ module Roby
                     require path
                 end
             end
-	    call_plugins(:require_planners, self)
+
+	    call_plugins(:require_actions, self)
         end
 
         def load_config_yaml
@@ -1467,13 +1464,13 @@ module Roby
 	    require_models
             call_plugins(:require_config, self)
 
-	    # Main is always included in the planner list
-            self.planners << app_module::Actions::Main
+	    # Main is always included in the interface list
+            self.main_action_interfaces << app_module::Actions::Main
 	   
             # Attach the global fault tables to the plan
-            self.planners.each do |planner|
-                if planner.respond_to?(:each_fault_response_table)
-                    planner.each_fault_response_table do |table, arguments|
+            self.main_action_interfaces.each do |actions|
+                if actions.respond_to?(:each_fault_response_table)
+                    actions.each_fault_response_table do |table, arguments|
                         plan.use_fault_response_table table, arguments
                     end
                 end
@@ -1664,7 +1661,7 @@ module Roby
             # And run the cleanup handlers
             cleanup_handlers.each(&:call)
 
-            planners.clear
+            main_action_interfaces.clear
             plan.clear
             clear_models
             clear_config
@@ -2070,12 +2067,9 @@ module Roby
 	    raise Errno::ENOENT, "no file #{name} found in #{Roby::Conf.datadirs.join(":")}"
 	end
 
-	def self.register_plugin(name, mod, &init)
-	    caller(1)[0] =~ /^([^:]+):\d/
-	    dir  = File.expand_path(File.dirname($1))
-            Roby.app.available_plugins.delete_if { |n| n == name }
-	    Roby.app.available_plugins << [name, dir, mod, init]
-	end
+        def register_app_extension(name, mod)
+            app_extensions[name] = mod
+        end
 
         # Returns the path in search_path that contains the given file or path
         #
@@ -2225,19 +2219,15 @@ module Roby
         def reload_actions
             unload_features("actions", ".*\.rb$")
             unload_features("models", "actions", ".*\.rb$")
-            planners.each do |planner_model|
-                planner_model.clear_model
+            main_action_interfaces.each do |actions|
+                actions.clear_model
             end
-            require_planners
+            require_actions
         end
 
         def reload_planners
-            unload_features("planners", ".*\.rb$")
-            unload_features("models", "planners", ".*\.rb$")
-            planners.each do |planner_model|
-                planner_model.clear_model
-            end
-            require_planners
+            Roby.warn_deprecated "#reload_planners is deprecated, use #reload_actions instead"
+            reload_actions
         end
 
         class ActionResolutionError < ArgumentError; end
@@ -2250,9 +2240,9 @@ module Roby
         #   action
         def action_from_model(model)
             candidates = []
-            planners.each do |planner_model|
-                planner_model.find_all_actions_by_type(model).each do |action|
-                    candidates << [planner_model, action]
+            main_action_interfaces.each do |actions|
+                actions.find_all_actions_by_type(model).each do |action|
+                    candidates << [actions, action]
                 end
             end
             candidates = candidates.uniq
@@ -2267,16 +2257,16 @@ module Roby
         end
         
         # Find an action with the given name on the action interfaces registered on
-        # {#planners}
+        # {#main_action_interfaces}
         #
         # @return [Actions::Models::Action,nil]
         # @raise [ActionResolutionError] if more than one action interface provide an
         #   action with this name
         def find_action_from_name(name)
             candidates = []
-            planners.each do |planner_model|
-                if m = planner_model.find_action_by_name(name)
-                    candidates << [planner_model, m]
+            main_action_interfaces.each do |actions|
+                if m = actions.find_action_by_name(name)
+                    candidates << [actions, m]
                 end
             end
             candidates = candidates.uniq
@@ -2298,8 +2288,8 @@ module Roby
         def action_from_name(name)
             action = find_action_from_name(name)
             if !action
-                available_actions = planners.map do |planner_model|
-                    planner_model.each_action.map(&:name)
+                available_actions = main_action_interfaces.map do |actions|
+                    actions.each_action.map(&:name)
                 end.flatten
                 if available_actions.empty?
                     raise ActionResolutionError, "cannot find an action named #{name}, there are no actions defined"
@@ -2319,9 +2309,9 @@ module Roby
         # @return task, planning_task
         def prepare_action(name, mission: false, **arguments)
             if name.kind_of?(Class)
-                planner_model, m = action_from_model(name)
+                actions, m = action_from_model(name)
             else
-                planner_model, m = action_from_name(name)
+                actions, m = action_from_name(name)
             end
 
             if mission

@@ -82,7 +82,7 @@ module Roby
                     describe 'test'
                     def test; Roby::Task.new_submodel end
                 end
-                app.planners << action_m
+                app.main_action_interfaces << action_m
                 job_id = client.test!
                 interface_mock.push_pending_job_notifications
                 client.poll
