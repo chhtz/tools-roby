@@ -1632,9 +1632,10 @@ module Roby
                 server_flags << "--debug"
             end
 
-            @log_server = fork do
-                exec("roby-display", *server_flags)
-            end
+            log_server_output = File.open File.join(log_dir, 'roby-display.txt'), 'w'
+            @log_server = spawn 'roby-display', *server_flags,
+                out: log_server_output,
+                err: log_server_output
             @log_server_port = port
         end
 
