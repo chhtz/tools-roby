@@ -313,31 +313,26 @@ module Roby
 	# If a set is a singleton, the only object of this singleton is returned
 	#   t1, (t6, t7) = prepare_plan missions: 1, tasks: 2
 	#    
-	def prepare_plan(options)
-	    options = validate_options options,
-		missions: 0, add: 0, discover: 0, tasks: 0,
-		permanent: 0,
-		model: Roby::Task, plan: plan
-
-	    missions, permanent, added, tasks = [], [], [], []
-	    (1..options[:missions]).each do |i|
-		options[:plan].add_mission_task(t = options[:model].new(id: "mission-#{i}"))
-		missions << t
+        def prepare_plan(missions: 0, add: 0, discover: 0, tasks: 0, permanent: 0, model: Roby::Task, plan: self.plan)
+	    mission_tasks, permanent_tasks, added_tasks, created_tasks = [], [], [], []
+	    (1..missions).each do |i|
+		plan.add_mission_task(t = model.new(id: "mission-#{i}"))
+		mission_tasks << t
 	    end
-	    (1..options[:permanent]).each do |i|
-		options[:plan].add_permanent_task(t = options[:model].new(id: "perm-#{i}"))
-		permanent << t
+	    (1..permanent).each do |i|
+		plan.add_permanent_task(t = model.new(id: "perm-#{i}"))
+		permanent_tasks << t
 	    end
-	    (1..(options[:discover] + options[:add])).each do |i|
-		options[:plan].add(t = options[:model].new(id: "discover-#{i}"))
-		added << t
+	    (1..(discover + add)).each do |i|
+		plan.add(t = model.new(id: "discover-#{i}"))
+		added_tasks << t
 	    end
-	    (1..options[:tasks]).each do |i|
-		tasks << options[:model].new(id: "task-#{i}")
+	    (1..tasks).each do |i|
+		created_tasks << model.new(id: "task-#{i}")
 	    end
 
 	    result = []
-	    [missions, permanent, added, tasks].each do |set|
+	    [mission_tasks, permanent_tasks, added_tasks, created_tasks].each do |set|
 		unless set.empty?
 		    result << set
 		end

@@ -87,20 +87,17 @@ module Roby
             #   redirect_output stdout: "file-out", stderr: "another-file"
             #   redirect_output nil
             #
-            def redirect_output(args)
-                if !args
+            def redirect_output(arg = nil, stdout: nil, stderr: nil)
+                if arg
+                    @redirection = arg.to_str
+                elsif !stdout && !stderr
                     @redirection = nil
-                elsif args.respond_to? :to_str
-                    @redirection = args.to_str
+                elsif stdout == stderr
+                    @redirection = stdout.to_str
                 else
-                    args = validate_options args, stdout: nil, stderr: nil
-                    if args[:stdout] == args[:stderr]
-                        @redirection = args[:stdout].to_str
-                    else
-                        @redirection = Hash.new
-                        @redirection[:stdout] = args[:stdout].to_str if args[:stdout]
-                        @redirection[:stderr] = args[:stderr].to_str if args[:stderr]
-                    end
+                    @redirection = Hash.new
+                    @redirection[:stdout] = stdout.to_str if stdout
+                    @redirection[:stderr] = stderr.to_str if stderr
                 end
             end
 

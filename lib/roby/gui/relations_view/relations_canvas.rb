@@ -211,18 +211,14 @@ module Roby
             #
             # @return [String,nil] if the file path is not set, the SVG content.
             #   Otherwise, nil.
-            def self.to_svg(task, options = Hash.new)
-                options = Kernel.validate_options options,
-                    path: nil,
-                    scale_x: PlanDotLayout::DOT_TO_QT_SCALE_FACTOR_X,
-                    scale_y: PlanDotLayout::DOT_TO_QT_SCALE_FACTOR_Y
+            def self.to_svg(task, path: nil, scale_x: PlanDotLayout::DOT_TO_QT_SCALE_FACTOR_X, scale_y: PlanDotLayout::DOT_TO_QT_SCALE_FACTOR_Y)
 
                 task.extend RelationsCanvasTask
                 plan = task.plan
 
                 display = RelationsCanvas.new([plan])
                 display.display_plan_bounding_boxes = false
-                display.layout_options.merge!(options.slice(:scale_x, :scale_y))
+                display.layout_options.merge!(scale_x: scale_x, scale_y: scale_y)
                 task.each_event do |ev|
                     if ev.controlable?
                         plan.called_generators << ev
@@ -245,7 +241,7 @@ module Roby
                 scene = display.scene
 
 		svg = Qt::SvgGenerator.new
-                if path = options[:path]
+                if path
                     svg.file_name = path
                 else
                     buffer = svg.output_device = Qt::Buffer.new

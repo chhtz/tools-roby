@@ -341,13 +341,11 @@ module Roby
         # at: time association. In the first case, +time+ is a floating-point
         # delay in seconds and in the second case it is a Time object which is
         # the absolute point in time at which this propagation must happen.
-        def signals(generator, timespec = nil)
+        def signals(generator, delay: nil, at: nil)
 	    if !generator.controlable?
 		raise EventNotControlable.new(self), "trying to establish a signal from #{self} to #{generator} which is not controllable"
 	    end
-	    timespec = ExecutionEngine.validate_timespec(timespec)
-
-	    add_signal generator, timespec
+	    add_signal generator, normalize_delay_info(delay: delay, at: at)
 	    self
         end
 
@@ -376,25 +374,22 @@ module Roby
         #   unreachable. This is needed when the :on_replace option is :copy,
         #   since the generator that became unreachable might be different than
         #   the one on which the handler got installed
-	def if_unreachable(options = Hash.new, &block)
-            if options == true || options == false
+	def if_unreachable(cancel_at_emission_deprecated = nil, cancel_at_emission: false, on_replace: :drop, &block)
+            if !cancel_at_emission_deprecated.nil?
                 Roby.warn_deprecated "if_unreachable(cancel_at_emission) has been replaced by if_unreachable(cancel_at_emission: true or false, on_replace: :policy)"
-                options = Hash[cancel_at_emission: options]
+                cancel_at_emission = cancel_at_emission_deprecated
             end
-            options = Kernel.validate_options options,
-                cancel_at_emission: false,
-                on_replace: :drop
 
-            if ![:drop, :copy].include?(options[:on_replace])
-                raise ArgumentError, "wrong value for the :on_replace option. Expecting either :drop or :copy, got #{options[:on_replace]}"
+            if ![:drop, :copy].include?(on_replace)
+                raise ArgumentError, "wrong value for the :on_replace option. Expecting either :drop or :copy, got #{on_replace}"
             end
 
             check_arity(block, 2)
             if unreachable_handlers.any? { |cancel, b| b.block == block }
                 return b.object_id
             end
-            handler = EventHandler.new(block, options[:on_replace] == :copy, true)
-	    unreachable_handlers << [options[:cancel_at_emission], handler]
+            handler = EventHandler.new(block, on_replace == :copy, true)
+	    unreachable_handlers << [cancel_at_emission, handler]
 	    handler.object_id
 	end
 
@@ -430,10 +425,17 @@ module Roby
             @unreachable_events[cancel_at_emission]
         end
 
-	def forward(generator, timespec = nil)
+	def forward(generator, delay: nil, at: nil)
             Roby.warn_deprecated "EventGenerator#forward has been renamed into EventGenerator#forward_to"
-            forward_to(generator, timespec)
+            forward_to(generator, delay: delay, at: at)
 	end
+
+        def normalize_delay_info(delay: nil, at: nil)
+            if delay then Hash[delay: delay]
+            elsif at then Hash[at: at]
+            else Hash.new
+            end
+        end
 
         # Emit +generator+ when +self+ is fired, without calling the command of
         # +generator+, if any.
@@ -442,9 +444,8 @@ module Roby
         # at: time association. In the first case, +time+ is a floating-point
         # delay in seconds and in the second case it is a Time object which is
         # the absolute point in time at which this propagation must happen.
-        def forward_to(generator, timespec = nil)
-	    timespec = ExecutionEngine.validate_timespec(timespec)
-	    add_forwarding generator, timespec
+        def forward_to(generator, delay: nil, at: nil)
+	    add_forwarding generator, normalize_delay_info(delay: delay, at: at)
 	    self
         end
 
@@ -459,8 +460,8 @@ module Roby
 	end
 
         # Signals the given target event only once
-	def signals_once(signal, delay = nil)
-            signals(signal, delay)
+	def signals_once(signal, delay: nil, at: nil)
+            signals(signal, delay: delay, at: at)
             once do |context|
 		remove_signal signal
 	    end
@@ -482,8 +483,8 @@ module Roby
         end
 
 	# Forwards to the given target event only once
-	def forward_to_once(ev, delay = nil)
-	    forward_to(ev, delay)
+	def forward_to_once(ev, delay: nil, at: nil)
+	    forward_to(ev, delay: delay, at: at)
 	    once do |context|
 		remove_forwarding ev
 	    end

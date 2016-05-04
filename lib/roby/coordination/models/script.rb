@@ -49,14 +49,11 @@ module Roby
                     # @return [Boolean] true if the watched event got emitted
                     attr_predicate :done?
 
-                    # @option options [Float] :timeout (nil) value for {#timeout}
-                    # @option options [Time] :after (nil) value for
-                    #   {#time_barrier}
-                    def initialize(event, options = Hash.new)
-                        options = Kernel.validate_options options, after: nil
+                    # @param [Time] after (nil) value for {#time_barrier}
+                    def initialize(event, after: nil)
                         @event = event
                         @done = false
-                        @time_barrier = options[:after]
+                        @time_barrier = after
                     end
 
                     def new(script)
@@ -127,10 +124,9 @@ module Roby
                     attr_reader :seconds
                     attr_reader :event
 
-                    def initialize(seconds, options = Hash.new)
+                    def initialize(seconds, emit: nil)
                         @seconds = seconds
-                        options = Kernel.validate_options options, emit: nil
-                        @event = options[:emit]
+                        @event = emit
                     end
 
                     def new(script)

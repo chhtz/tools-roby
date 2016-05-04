@@ -118,7 +118,7 @@ module Roby
                         for parent in vertex.parent_objects(relation)
                             if !events.include?(parent)
                                 next
-                            elsif parent[vertex, relation]
+                            elsif !parent[vertex, relation].empty?
                                 next
                             elsif !terminal_set.include?(parent)
                                 terminal_set  << parent

@@ -51,21 +51,19 @@ module Roby
             # @option options [nil,Base] :parent (nil) the parent coordination
             #   model. This is used so that the coordination tasks can be shared
             #   across instances
-            def initialize(root_task = nil, arguments = Hash.new, options = Hash.new)
-                options = Kernel.validate_options options, on_replace: :drop, parent: nil
-
+            def initialize(root_task = nil, on_replace: :drop, parent: nil, **arguments)
                 @arguments = model.validate_arguments(arguments)
-                @parent = options[:parent]
+                @parent = parent
                 @instances = Hash.new
                 if root_task
                     bind_coordination_task_to_instance(
                         instance_for(model.root),
                         root_task,
-                        on_replace: options[:on_replace])
+                        on_replace: on_replace)
 
                     attach_fault_response_tables_to(root_task)
                     
-                    if options[:on_replace] == :copy
+                    if on_replace == :copy
                         root_task.as_service.on_replacement do |old_task, new_task|
                             attach_fault_response_tables_to(new_task)
                         end
@@ -93,16 +91,14 @@ module Roby
             #
             # @param [Coordination::Task] coordination_task the coordination task
             # @param [Roby::Task] instance the task
-            # @option options [Symbol] :on_replace (:drop) what should be done
+            # @param [Symbol] on_replace (:drop) what should be done
             #   if the task instance is replaced by another task. If :drop, the
             #   coordination task will be reset to nil. If :copy, it will track
             #   the new task
             # @return [void]
-            def bind_coordination_task_to_instance(coordination_task, instance, options = Hash.new)
-                options = Kernel.validate_options options, on_replace: :drop
-
+            def bind_coordination_task_to_instance(coordination_task, instance, on_replace: :drop)
                 coordination_task.bind(instance)
-                if options[:on_replace] == :copy
+                if on_replace == :copy
                     instance.as_service.on_replacement do |old_task, new_task|
                         coordination_task.bind(new_task)
                     end

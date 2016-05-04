@@ -253,13 +253,7 @@ module Roby
             DOT_TO_QT_SCALE_FACTOR_X = 1.0 / 55
             DOT_TO_QT_SCALE_FACTOR_Y = 1.0 / 55
 
-            def self.parse_dot_layout(dot_layout, options = Hash.new)
-                options = Kernel.validate_options options,
-                    scale_x: DOT_TO_QT_SCALE_FACTOR_X,
-                    scale_y: DOT_TO_QT_SCALE_FACTOR_Y
-                scale_x = options[:scale_x]
-                scale_y = options[:scale_y]
-
+            def self.parse_dot_layout(dot_layout, scale_x: DOT_TO_QT_SCALE_FACTOR_X, scale_y: DOT_TO_QT_SCALE_FACTOR_Y)
                 current_graph_id = nil
                 bounding_rects = Hash.new
                 object_pos     = Hash.new
@@ -304,10 +298,7 @@ module Roby
                 return bounding_rects, object_pos
             end
 
-            def run_dot(options = Hash.new)
-                options, parsing_options = Kernel.filter_options options,
-                    graph_type: 'digraph', layout_method: display.layout_method
-
+            def run_dot(graph_type: 'digraph', layout_method: display.layout_method, **parsing_options)
                 @@index ||= 0
                 @@index += 1
 
@@ -316,7 +307,7 @@ module Roby
                 # Dot output file
                 dot_output = Tempfile.new("roby_layout")
 
-                dot_input << "#{options[:graph_type]} relations {\n"
+                dot_input << "#{graph_type} relations {\n"
                 yield(dot_input)
                 dot_input << "}\n"
 
@@ -324,20 +315,18 @@ module Roby
 
                 # Make sure the GUI keeps being updated while dot is processing
                 FileUtils.cp dot_input.path, "/tmp/dot-input-#{@@index}.dot"
-                system("#{options[:layout_method]} #{dot_input.path} > #{dot_output.path}")
+                system("#{layout_method} #{dot_input.path} > #{dot_output.path}")
                 FileUtils.cp dot_output.path, "/tmp/dot-output-#{@@index}.dot"
 
                 # Load only task bounding boxes from dot, update arrows later
                 lines = File.open(dot_output.path) { |io| io.readlines  }
-                PlanDotLayout.parse_dot_layout(lines, parsing_options)
+                PlanDotLayout.parse_dot_layout(lines, **parsing_options)
             end
 
             # Generates a layout internal for each task, allowing to place the
             # events according to the propagations
-            def layout(display, plan, options = Hash.new)
+            def layout(display, plan, scale_x: DOT_TO_QT_SCALE_FACTOR_X, scale_y: DOT_TO_QT_SCALE_FACTOR_Y)
                 @display         = display
-                options = Kernel.validate_options options,
-                    scale_x: DOT_TO_QT_SCALE_FACTOR_X, scale_y: DOT_TO_QT_SCALE_FACTOR_Y
 
                 # We first layout only the tasks separately. This allows to find
                 # how to layout the events within the task, and know the overall

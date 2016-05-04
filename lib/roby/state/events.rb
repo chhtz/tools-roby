@@ -87,10 +87,9 @@ module Roby
         # +t+:: time as a Time object
         #
         # See TimePointEvent
-        def at(options)
-            options = validate_options options, t: nil
-            if time = options[:t]
-                trigger_when { Time.now >= time }
+        def at(t: nil)
+            if t
+                trigger_when { Time.now >= t }
             end
         end
     end

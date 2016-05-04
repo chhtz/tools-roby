@@ -63,10 +63,9 @@ module Roby
             #
             # @param [Task] task
             # @return [Task] the task itself
-            def depends_on(task, options = Hash.new)
-                options = Kernel.validate_options options, :role
+            def depends_on(task, role: nil)
                 task = validate_task(task)
-                dependencies << [task, options[:role]]
+                dependencies << [task, role]
                 task
             end
 

@@ -196,13 +196,12 @@ module Roby
         #   overridable_configuration 'log', 'filter_backtraces', predicate: true
         #
         # will define #filter_backtraces? instead of #filter_backtraces
-        def self.overridable_configuration(config_set, config_key, options = Hash.new)
-            options = Kernel.validate_options options, predicate: false, attr_name: config_key
+        def self.overridable_configuration(config_set, config_key, predicate: false, attr_name: config_key)
             attr_config(config_set)
-            define_method("#{options[:attr_name]}#{"?" if options[:predicate]}") do
+            define_method("#{attr_name}#{"?" if predicate}") do
                 send(config_set)[config_key]
             end
-            define_method("#{options[:attr_name]}=") do |new_value|
+            define_method("#{attr_name}=") do |new_value|
                 send("#{config_set}_overrides")[config_key] = new_value
             end
         end

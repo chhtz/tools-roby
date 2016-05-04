@@ -389,16 +389,11 @@ module Roby
             module Extension
                 # Shortcut to specify that +self+ should be emitted after
                 # +other_event+
-                def should_emit_after(other_event, options = nil)
-                    if options
-                        options = Kernel.validate_options options,
-                            min_t: nil, max_t: nil, recurrent: false
-                        recurrent = options[:recurrent]
-                    end
+                def should_emit_after(other_event, recurrent: false, min_t: nil, max_t: nil)
                     other_event.add_occurence_constraint(self, 1, Infinity, recurrent)
-                    if options && (options[:min_t] || options[:max_t])
+                    if min_t || max_t
                         other_event.add_temporal_constraint(self,
-                                options[:min_t] || 0, options[:max_t] || Infinity)
+                                min_t || 0, max_t || Infinity)
                     end
                 end
 

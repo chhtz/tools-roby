@@ -181,9 +181,9 @@ module Roby
                 action_model.coordination_model = coordination_model
 
                 if name
-                    define_method(name) do |*arguments|
+                    define_method(name) do |**arguments|
                         plan.add(root = root_m.new)
-                        coordination_model.new(self.model, root, *arguments) 
+                        coordination_model.new(self.model, root, **arguments) 
                         root
                     end
                 end

@@ -168,12 +168,12 @@ module Roby
             end
 
             # Instanciate this action on the given plan
-            def instanciate(plan, arguments = Hash.new)
-                run(action_interface_model.new(plan), arguments)
+            def instanciate(plan, **arguments)
+                run(action_interface_model.new(plan), **arguments)
             end
 
             # Executes the action on the given action interface
-            def run(action_interface, arguments = Hash.new)
+            def run(action_interface, **arguments)
                 if self.arguments.empty?
                     if !arguments.empty?
                         raise ArgumentError, "#{name} expects no arguments, but #{arguments.size} are given"
@@ -190,7 +190,7 @@ module Roby
                             raise ArgumentError, "required argument #{arg.name} not given to #{name}"
                         end
                     end
-                    result = action_interface.send(name, arguments).as_plan
+                    result = action_interface.send(name, **arguments).as_plan
                 end
                 # Make the planning task inherit the model/argument flags
                 if planning_task = result.planning_task

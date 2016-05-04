@@ -716,13 +716,10 @@ module Roby
         #   dest_task, with delay options. See EventGenerator#signals for more
         #   information on the available options
         #
-        def signals(event_model, to, *to_task_events)
+        def signals(event_model, to, *to_task_events, **delay)
             Roby.warn_deprecated "Task#signals is deprecated, use EventGenerator#signal instead (e.g. #{event_model}_event.signals other_event)"
 
             generator = event(event_model)
-            if Hash === to_task_events.last
-                delay = to_task_events.pop
-            end
 	    to_events = case to
 			when Task
                             to_task_events.map { |ev_model| to.event(ev_model) }
@@ -732,7 +729,7 @@ module Roby
 			end
 
             to_events.each do |event|
-                generator.signals event, delay
+                generator.signals event, **delay
             end
             self
         end
@@ -762,13 +759,10 @@ module Roby
         # @overload forward_to(source_event, dest_task)
         #   @deprecated you must always specify the target event
         #
-	def forward_to(event_model, to, *to_task_events)
+	def forward_to(event_model, to, *to_task_events, **delay)
             Roby.warn_deprecated "Task#forward_to is deprecated, use EventGenerator#forward_to instead (e.g. #{event_model}_event.forward_to other_event)"
 
             generator = event(event_model)
-            if Hash === to_task_events.last
-                delay = to_task_events.pop
-            end
 	    to_events = case
                         when Task
                             to_task_events.map { |ev| to.event(ev) }
@@ -778,7 +772,7 @@ module Roby
 			end
 
 	    to_events.each do |ev|
-		generator.forward_to ev, delay
+		generator.forward_to ev, **delay
 	    end
 	end
 

@@ -19,8 +19,8 @@ describe Roby::Coordination::ActionStateMachine do
         @description = description
     end
 
-    def start_machine(action_name, *args)
-        task = action_m.find_action_by_name(action_name).instanciate(plan, *args)
+    def start_machine(action_name, **arguments)
+        task = action_m.find_action_by_name(action_name).instanciate(plan, **arguments)
         plan.add_permanent_task(task)
         task.start!
         task

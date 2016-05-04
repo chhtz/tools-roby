@@ -230,14 +230,9 @@ module Roby
         # can be retrieved via 
         #     yourtask.state_machine.status 
         # 
-        def refine_running_state (*args, &block)
-            if args.last.kind_of?(Hash) 
-                options = args.pop
-            end
-            options = Kernel.validate_options(options || Hash.new, namespace: nil)
-
-            if options.has_key?(:namespace)
-                self.namespace=options[:namespace]
+        def refine_running_state(*args, namespace: nil, &block)
+            if namespace
+                self.namespace = namespace
             end
 
             # Check if a model of a class ancestor already exists

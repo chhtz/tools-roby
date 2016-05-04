@@ -242,7 +242,7 @@ module Roby
             # Called when the connection to the log server failed, either
             # because it has been closed or because creating the connection
             # failed
-            def connection_failed(e, client, options)
+            def connection_failed(e, client, **options)
                 @connection_error = e
                 emit warn("connection failed: #{e.message}")
                 if @reconnection_timer
@@ -254,7 +254,7 @@ module Roby
                 @connect_options = options.dup
                 @reconnection_timer.connect(SIGNAL('timeout()')) do
                     puts "trying to reconnect to #{@connect_client} #{@connect_options}"
-                    if connect(@connect_client, @connect_options)
+                    if connect(@connect_client, **@connect_options)
                         emit info("Connected")
                         @reconnection_timer.stop
                         @reconnection_timer.dispose
@@ -272,10 +272,7 @@ module Roby
             #
             # +update_period+ is, in seconds, the period at which the
             # display will check whether there is new data on the port.
-            def connect(client, options = Hash.new)
-                options = Kernel.validate_options options,
-                    port: DRoby::Logfile::Server::DEFAULT_PORT,
-                    update_period: DEFAULT_REMOTE_POLL_PERIOD
+            def connect(client, port: DRoby::Logfile::Server::DEFAULT_PORT, update_period: DEFAULT_REMOTE_POLL_PERIOD)
 
                 if client.respond_to?(:to_str)
                     self.window_title = "roby-display: #{client}"
@@ -283,9 +280,9 @@ module Roby
 
                     begin
                         hostname = client
-                        client = DRoby::Logfile::Client.new(client, options[:port])
+                        client = DRoby::Logfile::Client.new(client, port)
                     rescue Exception => e
-                        connection_failed(e, client, options)
+                        connection_failed(e, client, port: port, update_period: update_period)
                         return false
                     end
                 end
@@ -312,11 +309,11 @@ module Roby
                         puts e.message
                         puts "  " + e.backtrace.join("\n  ")
                         if hostname
-                            connect(hostname, options)
+                            connect(hostname, port: port, update_period: update_period)
                         end
                     end
                 end
-                timer.start(Integer(options[:update_period] * 1000))
+                timer.start(Integer(update_period * 1000))
                 return true
             end
 

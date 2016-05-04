@@ -898,29 +898,14 @@ module Roby
             end
         end
 
-        # Validates +timespec+ as a delay specification. A valid delay
-        # specification is either +nil+ or a hash, in which case two forms are
-        # possible:
-        #
-        #   at: absolute_time
-        #   delay: number
-        #
-        def self.validate_timespec(timespec)
-            if timespec
-                timespec = validate_options timespec, [:delay, :at]
-            end
-        end
-
         # Returns a Time object which represents the absolute point in time
         # referenced by +timespec+ in the context of delaying a propagation
         # between +source+ and +target+.
         #
         # See validate_timespec for more information
-        def self.make_delay(timeref, source, target, timespec)
-            if delay = timespec[:delay] then timeref + delay
-            elsif at = timespec[:at] then at
-            else
-                raise ArgumentError, "invalid timespec #{timespec}"
+        def self.make_delay(timeref, source, target, delay: nil, at: nil)
+            if delay then timeref + delay
+            elsif at then at
             end
         end
 
@@ -999,7 +984,7 @@ module Roby
 
             delayed = true
             info.each_slice(3) do |src, ctxt, time|
-                if time && (delay = ExecutionEngine.make_delay(timeref, src, target, time))
+                if time && (delay = ExecutionEngine.make_delay(timeref, src, target, **time))
                     add_event_delay(delay, is_forward, src, target, ctxt)
                     next
                 end

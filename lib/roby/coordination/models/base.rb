@@ -75,9 +75,8 @@ module Roby
             #   task model that is going to be used as a toplevel task for the
             #   state machine
             # @return [Model<StateMachine>] a subclass of StateMachine
-            def setup_submodel(subclass, options = Hash.new)
-                options = Kernel.validate_options options, root: Roby::Task
-                subclass.root(options[:root])
+            def setup_submodel(subclass, root: Roby::Task)
+                subclass.root(root)
                 super
             end
 
