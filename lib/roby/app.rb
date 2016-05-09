@@ -568,8 +568,8 @@ module Roby
             'engine' => Hash.new
         }
 
-	def initialize
-            @plan = ExecutablePlan.new
+        def initialize(plan: ExecutablePlan.new)
+            @plan = plan
 
             @auto_load_all = false
             @default_auto_load = true
