@@ -7,6 +7,7 @@ Rake::TestTask.new(:test) do |t|
     t.libs << "."
     t.libs << "lib"
     t.test_files = FileList['test/suite_core.rb']
+    t.warning = false
 end
 
 begin
