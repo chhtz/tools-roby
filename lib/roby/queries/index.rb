@@ -4,6 +4,7 @@ module Roby
     #
     # @see {Roby::Plan#task_index} {Roby::Queries::Query}
     class Index
+        attr_reader :task_models
         # A model => Set map of the tasks for each model
 	attr_reader :by_model
 	# A state => Set map of tasks given their state. The state is
@@ -19,6 +20,7 @@ module Roby
         PREDICATES = STATE_PREDICATES.dup
 
 	def initialize
+            @task_models = Hash.new
 	    @by_model = Hash.new { |h, k| h[k] = Set.new }
 	    @by_predicate = Hash.new
 	    STATE_PREDICATES.each do |state_name|
@@ -29,6 +31,9 @@ module Roby
 	end
 
         def merge(source)
+            task_models.merge!(source.task_models) do |task, m0, m1|
+                m0.merge(m1)
+            end
             source.by_model.each do |model, set|
                 by_model[model].merge(set)
             end
@@ -71,7 +76,8 @@ module Roby
 
         # Add a new task to this index
 	def add(task)
-	    for klass in task.model.ancestors
+            models = task_models[task] = task.model.each_fullfilled_model.to_set
+            models.each do |klass|
 		by_model[klass] << task
 	    end
             for pred in PREDICATES
@@ -135,7 +141,7 @@ module Roby
 
         # Remove all references of +task+ from the index.
 	def remove(task)
-	    for klass in task.model.ancestors
+            task_models.delete(task).each do |klass|
 		by_model[klass].delete(task)
 	    end
 	    for state_set in by_predicate

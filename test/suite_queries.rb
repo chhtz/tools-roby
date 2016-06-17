@@ -1,4 +1,5 @@
 require 'roby/test/self'
+require './test/queries/test_index'
 require './test/queries/test_task_matcher'
 require './test/queries/test_or_matcher'
 require './test/queries/test_any'
