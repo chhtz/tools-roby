@@ -156,10 +156,10 @@ class TC_Dependency < Minitest::Test
         end
     end
 
-    def test_implicit_fullfilled_model_does_not_include_a_singleton_class_if_the_object_has_one
+    def test_implicit_fullfilled_model_includes_a_singleton_class_if_the_object_has_one
         task_m = Roby::Task.new_submodel
         plan.add(task = task_m.new)
-        assert_equal [task_m, Roby::Task], task.singleton_class.fullfilled_model
+        assert_equal [task.singleton_class, task_m, Roby::Task], task.singleton_class.fullfilled_model
     end
 
     def test_fullfilled_model_validation

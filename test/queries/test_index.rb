@@ -9,6 +9,18 @@ module Roby
                 @task_m = Task.new_submodel
             end
 
+            it "registers per-model mappings using #each_fullfilled_model" do
+                task_m = Task.new_submodel
+                task = Roby::Task.new
+                flexmock(task.model).should_receive(:each_fullfilled_model).
+                    and_return([task_m])
+
+                index.add(task)
+                assert_equal [task], index.by_model[task_m].to_a
+                index.remove(task)
+                assert_equal [], index.by_model[task_m].to_a
+            end
+
             describe "#add" do
                 it "registers the model-to-task mapping" do
                     index.add(task = task_m.new)
@@ -21,7 +33,6 @@ module Roby
                     assert_equal [task], index.by_model[task.singleton_class].to_a
                     assert_equal [task], index.by_model[task.model].to_a
                     assert_equal [task], index.by_model[Task].to_a
-                    assert_equal [task], index.by_model[TaskService].to_a
                 end
             end
 
@@ -32,7 +43,6 @@ module Roby
                     index.remove(task)
                     assert_equal [other], index.by_model[task_m].to_a
                     assert_equal [other], index.by_model[Task].to_a
-                    assert_equal [other], index.by_model[TaskService].to_a
                 end
 
                 it "removes a by_model entry when it refers to no tasks anymore" do
@@ -44,4 +54,3 @@ module Roby
         end
     end
 end
-

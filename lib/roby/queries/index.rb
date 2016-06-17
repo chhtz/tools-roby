@@ -4,6 +4,7 @@ module Roby
     #
     # @see {Roby::Plan#task_index} {Roby::Queries::Query}
     class Index
+        attr_reader :task_models
         # A model => Set map of the tasks for each model
         attr_reader :by_model
         # A state => Set map of tasks given their state. The state is
@@ -18,19 +19,20 @@ module Roby
         STATE_PREDICATES = [:pending?, :starting?, :running?, :finished?, :success?, :failed?].to_set
         PREDICATES = STATE_PREDICATES.dup
 
-        def initialize
+	def initialize
+            @task_models = Hash.new
             @by_model = Hash.new do |h, k|
                 set = Set.new
                 set.compare_by_identity
                 h[k] = set
             end
-            @by_predicate = Hash.new
+	    @by_predicate = Hash.new
             @by_predicate.compare_by_identity
-            STATE_PREDICATES.each do |state_name|
+	    STATE_PREDICATES.each do |state_name|
                 set = Set.new
                 set.compare_by_identity
                 by_predicate[state_name] = set
-            end
+	    end
             @self_owned = Set.new
             @self_owned.compare_by_identity
             @by_owner = Hash.new
@@ -38,6 +40,9 @@ module Roby
         end
 
         def merge(source)
+            task_models.merge!(source.task_models) do |task, m0, m1|
+                m0.merge(m1)
+            end
             source.by_model.each do |model, set|
                 by_model[model].merge(set)
             end
@@ -51,24 +56,26 @@ module Roby
         end
 
         def initialize_copy(source)
+            by_model     = @by_model
+            by_predicate = @by_predicate
+            by_owner     = @by_owner
+
             super
 
-            @by_model = Hash.new { |h, k| h[k] = Set.new }
+            @by_model     = by_model
+            @by_predicate = by_predicate
+            @by_owner     = by_owner
+
             source.by_model.each do |model, set|
                 by_model[model] = set.dup
             end
-
-            @by_predicate = Hash.new
             source.by_predicate.each do |state, set|
                 by_predicate[state] = set.dup
             end
-
-            @self_owned = source.self_owned.dup
-
-            @by_owner = Hash.new
             source.by_owner.each do |owner, set|
                 by_owner[owner] = set.dup
             end
+            @self_owned = source.self_owned.dup
         end
 
         def clear
@@ -79,10 +86,11 @@ module Roby
         end
 
         # Add a new task to this index
-        def add(task)
-            for klass in task.model.ancestors
-                by_model[klass] << task
-            end
+	def add(task)
+            models = task_models[task] = task.model.each_fullfilled_model.to_set
+            models.each do |klass|
+		by_model[klass] << task
+	    end
             for pred in PREDICATES
                 if task.send(pred)
                     by_predicate[pred] << task
@@ -143,17 +151,17 @@ module Roby
 
 
         # Remove all references of +task+ from the index.
-        def remove(task)
-            for klass in task.model.ancestors
+	def remove(task)
+            task_models.delete(task).each do |klass|
                 set = by_model[klass]
                 set.delete(task)
                 if set.empty?
                     by_model.delete(klass)
                 end
-            end
-            for state_set in by_predicate
-                state_set.last.delete(task)
-            end
+	    end
+	    for state_set in by_predicate
+		state_set.last.delete(task)
+	    end
             self_owned.delete(task)
             for owner in task.owners
                 remove_owner(task, owner)
