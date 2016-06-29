@@ -91,6 +91,12 @@ module Roby
                 end
             end
 
+            def has_pending_cycle?
+                synchronize do
+                    !@current_cycle.empty?
+                end
+            end
+
             # Close this logger, flushing the remaining data to I/O
             def close
                 dump(:cycle_end, Time.now, [Hash.new])
@@ -143,24 +149,34 @@ module Roby
                     append_message(m, time, args)
 
                     if m == :cycle_end
-                        if threaded?
-                            if !@dump_thread.alive?
-                                @dump_thread.value
-                            end
-
-                            @dump_queue << current_cycle
-                            @current_cycle = Array.new
-                        else
-                            logfile.dump(current_cycle)
-                            if sync?
-                                logfile.flush
-                            end
-                            current_cycle.clear
-                        end
+                        write_current_cycle
                     end
                 end
 
             ensure @dump_time += (Time.now - start)
+            end
+
+            # @api private
+            #
+            # Write the current cycle to file
+            #
+            # In multithreaded contexts, it must be called with a {#synchronize}
+            # context
+            def write_current_cycle
+                if threaded?
+                    if !@dump_thread.alive?
+                        @dump_thread.value
+                    end
+
+                    @dump_queue << current_cycle
+                    @current_cycle = Array.new
+                else
+                    logfile.dump(current_cycle)
+                    if sync?
+                        logfile.flush
+                    end
+                    current_cycle.clear
+                end
             end
 
             # Main dump loop if the logger is threaded
