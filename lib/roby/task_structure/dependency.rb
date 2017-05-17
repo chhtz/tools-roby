@@ -763,10 +763,8 @@ module Roby
                     end
                 end
 
-                def find_through_method_missing(m, args, call: true)
-                    MetaRuby::DSLs.find_through_method_missing(
-                        self, m, args, 'child' => :find_child_from_role, call: call)
-                end
+                MetaRuby::DSLs.setup_find_through_method_missing Roby::Task,
+                    child: 'find_child_from_role'
             end
 
             module ModelExtension

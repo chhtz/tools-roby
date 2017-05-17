@@ -42,18 +42,20 @@ module Roby
                 instance_eval(&block)
             end
 
-            def find_through_method_missing(m, args)
-                MetaRuby::DSLs.find_through_method_missing(@toplevel_task, m, args, 'event' => :find_event, 'child' => :find_child_from_role, call: false) || super
+            def find_event(name)
+                @toplevel_task.find_event(name)
             end
 
-            def respond_to_missing?(m, include_private)
-                find_through_method_missing(m, []) || @test.respond_to?(m) || super
+            def find_child_from_role(name)
+                @toplevel_task.find_child(name)
             end
+
+            MetaRuby::DSLs.setup_find_through_method_missing self,
+                event: 'find_event',
+                child: 'find_child_from_role'
 
             def method_missing(m, *args, &block)
-                if found = find_through_method_missing(m, args)
-                    found
-                elsif @test.respond_to?(m)
+                if @test.respond_to?(m)
                     @test.public_send(m, *args, &block)
                 else
                     super
